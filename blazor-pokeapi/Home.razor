@@ -1,0 +1,108 @@
+@page "/"
+@using System.Globalization
+@using System.Net.Http.Json
+@using BlazorPokeApi.Models
+@inject HttpClient Http
+
+<PageTitle>Buscar Pokémon</PageTitle>
+
+<h1>Buscar Pokémon</h1>
+
+<div class="mb-3">
+    <label for="nome" class="form-label">Nome do Pokémon:</label>
+    <input id="nome"
+           class="form-control"
+           @bind="nomePokemon"
+           @bind:event="oninput"
+           @onkeydown="AoPressionarTecla" />
+</div>
+
+<button class="btn btn-primary" @onclick="BuscarPokemon" disabled="@carregando">
+    Buscar Pokémon
+</button>
+
+<hr />
+
+@if (carregando)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (!string.IsNullOrEmpty(erro))
+{
+    <div class="alert alert-danger">@erro</div>
+}
+else if (pokemon is not null)
+{
+    <h3>Detalhes do Pokémon</h3>
+
+    @if (!string.IsNullOrEmpty(UrlImagem))
+    {
+        <img src="@UrlImagem" alt="@pokemon.Name" width="200" />
+    }
+
+    <p><strong>ID:</strong> @pokemon.Id</p>
+    <p><strong>Nome:</strong> @pokemon.Name</p>
+    <p><strong>Altura:</strong> @Altura m</p>
+    <p><strong>Peso:</strong> @Peso kg</p>
+}
+
+@code {
+    private string nomePokemon = string.Empty;
+    private Pokemon? pokemon;
+    private string? erro;
+    private bool carregando;
+
+    // A imagem vem do campo "official-artwork" -> "front_default" do JSON
+    private string? UrlImagem =>
+        pokemon?.Sprites?.Other?.OfficialArtwork?.FrontDefault;
+
+    // A API devolve a altura em decímetros e o peso em hectogramas
+    private string Altura => Formatar(pokemon!.Height / 10.0);
+
+    private string Peso => Formatar(pokemon!.Weight / 10.0);
+
+    private static string Formatar(double valor)
+    {
+        return valor
+            .ToString("0.#", CultureInfo.InvariantCulture)
+            .Replace('.', ',');
+    }
+
+    private async Task AoPressionarTecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await BuscarPokemon();
+        }
+    }
+
+    private async Task BuscarPokemon()
+    {
+        var nome = nomePokemon.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(nome))
+        {
+            pokemon = null;
+            erro = "Digite o nome de um Pokémon.";
+            return;
+        }
+
+        carregando = true;
+        erro = null;
+        pokemon = null;
+
+        try
+        {
+            var url = $"https://pokeapi.co/api/v2/pokemon/{Uri.EscapeDataString(nome)}";
+            pokemon = await Http.GetFromJsonAsync<Pokemon>(url);
+        }
+        catch (HttpRequestException)
+        {
+            erro = "Pokémon não encontrado ou sem conexão com a internet.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+}
